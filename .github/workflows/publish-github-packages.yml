@@ -1,0 +1,82 @@
+name: Publish to GitHub Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-ghcr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for customer-service
+        id: meta_customer
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/customer-service
+          tags: |
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push customer-service
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/customer-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta_customer.outputs.tags }}
+          labels: ${{ steps.meta_customer.outputs.labels }}
+
+      - name: Extract metadata for import-service
+        id: meta_import
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/import-service
+          tags: |
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push import-service
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/import-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta_import.outputs.tags }}
+          labels: ${{ steps.meta_import.outputs.labels }}
+
+      - name: Extract metadata for frontend
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/customer-frontend
+          tags: |
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+
