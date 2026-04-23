@@ -1,0 +1,34 @@
+name: Copilot Code Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main", "develop"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  copilot-review:
+    name: Copilot review reminder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add Copilot review guidance comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              "GitHub Copilot review workflow is active for this PR.",
+              "",
+              "If your repository has Copilot code review enabled, request a Copilot review from the Pull Request UI.",
+              "This workflow keeps a dedicated check in your branch protection rules."
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
