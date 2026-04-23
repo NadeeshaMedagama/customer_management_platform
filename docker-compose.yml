@@ -1,0 +1,66 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: cmp-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: customer_db
+      MARIADB_USER: cmp_user
+      MARIADB_PASSWORD: cmp_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./database/ddl/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/dml/01_master_data.sql:/docker-entrypoint-initdb.d/02_master_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -proot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  customer-service:
+    build:
+      context: ./backend
+      dockerfile: customer-service/Dockerfile
+    container_name: cmp-customer-service
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mariadb://mariadb:3306/customer_db
+      DB_USER: cmp_user
+      DB_PASSWORD: cmp_password
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  import-service:
+    build:
+      context: ./backend
+      dockerfile: import-service/Dockerfile
+    container_name: cmp-import-service
+    depends_on:
+      customer-service:
+        condition: service_started
+    environment:
+      CUSTOMER_SERVICE_BULK_URL: http://customer-service:8081/internal/customers/bulk-upsert
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cmp-frontend
+    depends_on:
+      - customer-service
+      - import-service
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+
+
