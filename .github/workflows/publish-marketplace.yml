@@ -1,0 +1,43 @@
+name: Publish Marketplace
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-action-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate action metadata exists
+        run: test -f action.yml
+
+      - name: Verify action metadata fields
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+
+            const raw = fs.readFileSync('action.yml', 'utf8');
+            const meta = yaml.load(raw);
+
+            const required = ['name', 'description', 'runs'];
+            for (const key of required) {
+              if (!meta[key]) {
+                core.setFailed(`Missing required key in action.yml: ${key}`);
+              }
+            }
+
+      - name: Marketplace publication note
+        run: |
+          echo "Action metadata validated."
+          echo "If this action is already listed, publishing is tied to your release tag."
+          echo "If this is the first publish, complete the one-time marketplace listing from the repository UI."
+
