@@ -16,34 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Validate production secrets
-        env:
-          PROD_HOST: ${{ secrets.PROD_HOST }}
-          PROD_USER: ${{ secrets.PROD_USER }}
-          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-          PROD_PATH: ${{ secrets.PROD_PATH }}
-        run: |
-          set -euo pipefail
-          missing=()
-          [ -n "$PROD_HOST" ] || missing+=("PROD_HOST")
-          [ -n "$PROD_USER" ] || missing+=("PROD_USER")
-          [ -n "$PROD_SSH_KEY" ] || missing+=("PROD_SSH_KEY")
-          [ -n "$PROD_PATH" ] || missing+=("PROD_PATH")
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Missing required production secrets: ${missing[*]}"
-            exit 1
-          fi
-
       - name: Deploy on production host
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
+          host: ${{ vars.PROD_HOST || secrets.PROD_HOST }}
+          username: ${{ vars.PROD_USER || secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          port: ${{ secrets.PROD_PORT || '22' }}
+          port: ${{ vars.PROD_PORT || secrets.PROD_PORT || '22' }}
           script: |
             set -e
-            cd "${{ secrets.PROD_PATH }}"
+            cd "${{ vars.PROD_PATH || secrets.PROD_PATH }}"
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             docker compose pull
             docker compose up -d
