@@ -1,32 +1,115 @@
-name: Deploy Production
+name: Deploy Production Workflow
 
 on:
+  workflow_run:
+    workflows: ["Publish Images to Docker Hub"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Docker image tag to deploy (example: v1.0.0)"
+        description: "Image tag to deploy (for example: v1.2.3)"
         required: true
-        default: "latest"
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve image tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --force --tags
+          TAG="$(git tag --points-at HEAD | head -n1)"
+
+          if [[ -z "$TAG" ]]; then
+            echo "No git tag found for this commit. Skipping deployment."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$TAG" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when commit is not tagged
+        if: steps.tag.outputs.skip == 'true'
+        run: echo "Deploy skipped because this workflow run is not from a tagged release commit."
+
+      - name: Resolve production connection settings
+        if: steps.tag.outputs.skip != 'true'
+        id: conn
+        shell: bash
+        env:
+          VAR_PROD_HOST: ${{ vars.PROD_HOST }}
+          SECRET_PROD_HOST: ${{ secrets.PROD_HOST }}
+          VAR_PROD_USER: ${{ vars.PROD_USER }}
+          SECRET_PROD_USER: ${{ secrets.PROD_USER }}
+          VAR_PROD_PORT: ${{ vars.PROD_PORT }}
+          SECRET_PROD_PORT: ${{ secrets.PROD_PORT }}
+          VAR_PROD_PATH: ${{ vars.PROD_PATH }}
+          SECRET_PROD_PATH: ${{ secrets.PROD_PATH }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          HOST="${VAR_PROD_HOST:-${SECRET_PROD_HOST:-}}"
+          USERNAME="${VAR_PROD_USER:-${SECRET_PROD_USER:-}}"
+          PORT="${VAR_PROD_PORT:-${SECRET_PROD_PORT:-22}}"
+          PATH_VALUE="${VAR_PROD_PATH:-${SECRET_PROD_PATH:-}}"
+
+          missing=()
+          [[ -n "${HOST// }" ]] || missing+=("PROD_HOST")
+          [[ -n "${USERNAME// }" ]] || missing+=("PROD_USER")
+          [[ -n "${PORT// }" ]] || missing+=("PROD_PORT")
+          [[ -n "${PATH_VALUE// }" ]] || missing+=("PROD_PATH")
+          [[ -n "${PROD_SSH_KEY// }" ]] || missing+=("PROD_SSH_KEY")
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing required production settings: ${missing[*]}"
+            echo "Set PROD_HOST/PROD_USER/PROD_PATH as environment vars or secrets in 'production', and PROD_SSH_KEY as a secret."
+            exit 1
+          fi
+
+          {
+            echo "host=$HOST"
+            echo "username=$USERNAME"
+            echo "port=$PORT"
+            echo "path=$PATH_VALUE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Deploy on production host
+        if: steps.tag.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ vars.PROD_HOST || secrets.PROD_HOST }}
-          username: ${{ vars.PROD_USER || secrets.PROD_USER }}
+          host: ${{ steps.conn.outputs.host }}
+          username: ${{ steps.conn.outputs.username }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          port: ${{ vars.PROD_PORT || secrets.PROD_PORT || '22' }}
+          port: ${{ steps.conn.outputs.port }}
           script: |
             set -e
-            cd "${{ vars.PROD_PATH || secrets.PROD_PATH }}"
-            export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            cd "${{ steps.conn.outputs.path }}"
+            export IMAGE_TAG="${{ steps.tag.outputs.value }}"
             docker compose pull
             docker compose up -d
             docker image prune -f
