@@ -1,0 +1,15 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: import-service
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+customer:
+  service:
+    internal-url: ${CUSTOMER_SERVICE_BULK_URL:http://localhost:8081/internal/customers/bulk-upsert}
+

@@ -1,0 +1,52 @@
+name: "Customer Management Platform CI Helper"
+description: "Composite action to run core backend and frontend checks for this repository"
+author: "customer_management_platform"
+
+inputs:
+  run-backend-tests:
+    description: "Run backend Maven tests"
+    required: false
+    default: "true"
+  run-frontend-build:
+    description: "Run frontend build"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Java 8
+      if: inputs.run-backend-tests == 'true'
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "8"
+        cache: maven
+
+    - name: Setup Node.js
+      if: inputs.run-frontend-build == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          frontend/package-lock.json
+
+    - name: Run backend tests
+      if: inputs.run-backend-tests == 'true'
+      shell: bash
+      run: mvn -B -f backend/pom.xml test
+
+    - name: Install frontend dependencies
+      if: inputs.run-frontend-build == 'true'
+      shell: bash
+      run: npm ci
+      working-directory: frontend
+
+    - name: Build frontend
+      if: inputs.run-frontend-build == 'true'
+      shell: bash
+      run: npm run build
+      working-directory: frontend
+
