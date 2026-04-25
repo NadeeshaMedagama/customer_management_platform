@@ -2,8 +2,10 @@ name: Deploy Production Workflow
 
 on:
   workflow_run:
-    workflows: ["Publish Container Images"]
-    types: [completed]
+    workflows:
+      - Publish Container Images
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       image_tag:
@@ -16,9 +18,7 @@ permissions:
 
 jobs:
   deploy:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    if: "github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')"
 
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -60,7 +60,7 @@ jobs:
 
       - name: Skip when commit is not tagged
         if: steps.tag.outputs.skip == 'true'
-        run: echo "Skipped: No tag found for this commit."
+        run: 'echo "Skipped: No tag found for this commit."'
 
       # ✅ Docker login
       - name: Docker login
