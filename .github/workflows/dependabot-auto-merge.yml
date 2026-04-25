@@ -11,10 +11,11 @@ permissions:
 
 jobs:
   automerge:
-#    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
-    
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
+
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
@@ -41,4 +42,3 @@ jobs:
             `, {
               pullRequestId: context.payload.pull_request.node_id
             });
-
