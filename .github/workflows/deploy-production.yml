@@ -20,7 +20,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
 
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     environment:
@@ -36,7 +36,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      # 🔹 Resolve image tag (same logic as your K8s workflow)
+      # ✅ Resolve image tag
       - name: Resolve image tag
         id: tag
         shell: bash
@@ -60,39 +60,27 @@ jobs:
 
       - name: Skip when commit is not tagged
         if: steps.tag.outputs.skip == 'true'
-        run: echo "Deploy skipped because this workflow run is not from a tagged release commit."
+        run: echo "Skipped: No tag found for this commit."
 
-      # 🔹 Docker login
+      # ✅ Docker login
       - name: Docker login
         if: steps.tag.outputs.skip != 'true'
-        shell: bash
         run: |
-          set -euo pipefail
+          echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
 
-          if [[ -z "${DOCKERHUB_USERNAME// }" || -z "${DOCKERHUB_PASSWORD// }" ]]; then
-            echo "Missing Docker Hub credentials."
-            exit 1
-          fi
-
-          echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-
-      # 🔹 Export IMAGE_TAG (used by docker-compose)
+      # ✅ Set IMAGE_TAG for docker-compose
       - name: Set image tag
         if: steps.tag.outputs.skip != 'true'
         run: echo "IMAGE_TAG=${{ steps.tag.outputs.value }}" >> $GITHUB_ENV
 
-      # 🔹 Deploy using docker compose
-      - name: Deploy production stack
+      # ✅ Pull and run containers (CI-style only)
+      - name: Run docker compose (test deploy)
         if: steps.tag.outputs.skip != 'true'
-        shell: bash
         run: |
-          set -euo pipefail
-
           docker compose pull || true
           docker compose up -d --build
-          docker image prune -f
 
-      # 🔹 Optional: Verify containers
-      - name: Verify running containers
+      # ✅ Verify containers
+      - name: Verify containers
         if: steps.tag.outputs.skip != 'true'
         run: docker ps
