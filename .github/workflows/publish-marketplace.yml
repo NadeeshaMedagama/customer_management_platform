@@ -19,21 +19,25 @@ jobs:
         run: test -f action.yml
 
       - name: Verify action metadata fields
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const yaml = require('js-yaml');
+        shell: bash
+        run: |
+          ruby -ryaml -e '
+            raw = File.read("action.yml")
+            meta = YAML.safe_load(raw)
 
-            const raw = fs.readFileSync('action.yml', 'utf8');
-            const meta = yaml.load(raw);
+            unless meta.is_a?(Hash)
+              warn "action.yml is not a valid YAML mapping"
+              exit 1
+            end
 
-            const required = ['name', 'description', 'runs'];
-            for (const key of required) {
-              if (!meta[key]) {
-                core.setFailed(`Missing required key in action.yml: ${key}`);
-              }
-            }
+            required = %w[name description runs]
+            missing = required.reject { |k| meta[k] }
+
+            if missing.any?
+              missing.each { |k| warn "Missing required key in action.yml: #{k}" }
+              exit 1
+            end
+          '
 
       - name: Marketplace publication note
         run: |
