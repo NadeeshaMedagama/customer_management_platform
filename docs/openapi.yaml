@@ -1,0 +1,411 @@
+openapi: 3.0.3
+info:
+  title: customer_management_platform API
+  version: 1.0.0
+  description: |
+    Full API contract for customer_management_platform.
+
+    Notes:
+    - Public customer APIs are exposed by `customer-service` on port 8081.
+    - Public import API is exposed by `import-service` on port 8082.
+    - `/internal/*` endpoints are internal service-to-service APIs.
+servers:
+  - url: http://localhost:8081
+    description: customer-service
+  - url: http://localhost:8082
+    description: import-service
+
+tags:
+  - name: Customers
+  - name: Import
+  - name: Internal
+
+paths:
+  /api/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+      responses:
+        '200':
+          description: Paginated customer list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageCustomerResponse'
+        '400':
+          description: Invalid pagination input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+    post:
+      tags: [Customers]
+      summary: Create customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '200':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+        '400':
+          description: Validation or business error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+
+  /api/customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get customer by ID
+      operationId: getCustomerById
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+    put:
+      tags: [Customers]
+      summary: Update customer by ID
+      operationId: updateCustomer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+        '400':
+          description: Validation or business error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+
+  /internal/customers/bulk-upsert:
+    post:
+      tags: [Internal]
+      summary: Bulk upsert customers by NIC
+      description: Internal endpoint called by import-service.
+      operationId: internalBulkUpsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkUpsertRequest'
+      responses:
+        '200':
+          description: Upsert summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUpsertResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerError'
+
+  /api/import/customers:
+    post:
+      tags: [Import]
+      summary: Upload Excel for bulk customer import
+      operationId: importCustomers
+      parameters:
+        - in: query
+          name: batchSize
+          required: false
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 5000
+            default: 1000
+          description: Values outside range are clamped by the service.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+        '400':
+          description: Invalid file input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportError'
+        '500':
+          description: File processing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportError'
+
+components:
+  schemas:
+    CustomerRequest:
+      type: object
+      required: [name, dateOfBirth, nicNumber]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: Nadeesha
+        dateOfBirth:
+          type: string
+          format: date
+          example: 1995-06-20
+        nicNumber:
+          type: string
+          minLength: 1
+          example: NIC-778899
+        mobileNumbers:
+          type: array
+          items:
+            type: string
+          example: ["+94771234567", "+94770000000"]
+        familyMemberNics:
+          type: array
+          items:
+            type: string
+          example: ["NIC-123456"]
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressRequest'
+
+    AddressRequest:
+      type: object
+      properties:
+        addressLine1:
+          type: string
+          example: No 12, Main Street
+        addressLine2:
+          type: string
+          example: Ward Place
+        cityCode:
+          type: string
+          example: CMB
+        countryCode:
+          type: string
+          example: LK
+
+    CustomerResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        nicNumber:
+          type: string
+        mobileNumbers:
+          type: array
+          items:
+            type: string
+        familyMemberNics:
+          type: array
+          items:
+            type: string
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressResponse'
+
+    AddressResponse:
+      type: object
+      properties:
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        cityCode:
+          type: string
+          example: CMB
+        city:
+          type: string
+          example: Colombo
+        countryCode:
+          type: string
+          example: LK
+        country:
+          type: string
+          example: Sri Lanka
+
+    BulkUpsertRequest:
+      type: object
+      required: [customers]
+      properties:
+        customers:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BulkUpsertItem'
+
+    BulkUpsertItem:
+      type: object
+      required: [name, dateOfBirth, nicNumber]
+      properties:
+        name:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        nicNumber:
+          type: string
+
+    BulkUpsertResponse:
+      type: object
+      properties:
+        createdCount:
+          type: integer
+          example: 900
+        updatedCount:
+          type: integer
+          example: 97
+
+    ImportSummary:
+      type: object
+      properties:
+        rowsRead:
+          type: integer
+          format: int64
+        rowsAccepted:
+          type: integer
+          format: int64
+        rowsRejected:
+          type: integer
+          format: int64
+        created:
+          type: integer
+          format: int64
+        updated:
+          type: integer
+          format: int64
+
+    CustomerError:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: 2026-04-23T14:08:00Z
+        status:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Validation failed
+
+    ImportError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Failed to process import file
+
+    PageCustomerResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerResponse'
+        pageable:
+          type: object
+          additionalProperties: true
+        totalPages:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        size:
+          type: integer
+        number:
+          type: integer
+        numberOfElements:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+        empty:
+          type: boolean
+
