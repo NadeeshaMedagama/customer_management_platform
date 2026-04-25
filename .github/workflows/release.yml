@@ -5,6 +5,16 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag to release (for example: v1.2.3)"
+        required: true
+        type: string
+      target_commitish:
+        description: "Branch or commit SHA to tag when manually running"
+        required: false
+        default: "main"
+        type: string
 
 permissions:
   contents: write
@@ -21,5 +31,8 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+          target_commitish: ${{ github.event_name == 'workflow_dispatch' && inputs.target_commitish || github.sha }}
           generate_release_notes: true
+          overwrite_files: true
 
