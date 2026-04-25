@@ -19,10 +19,14 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment:
       name: production
       url: ${{ vars.PRODUCTION_URL }}
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,61 +60,25 @@ jobs:
         if: steps.tag.outputs.skip == 'true'
         run: echo "Deploy skipped because this workflow run is not from a tagged release commit."
 
-      - name: Resolve production connection settings
+      - name: Docker login
         if: steps.tag.outputs.skip != 'true'
-        id: conn
         shell: bash
-        env:
-          VAR_PROD_HOST: ${{ vars.PROD_HOST }}
-          SECRET_PROD_HOST: ${{ secrets.PROD_HOST }}
-          VAR_PROD_USER: ${{ vars.PROD_USER }}
-          SECRET_PROD_USER: ${{ secrets.PROD_USER }}
-          VAR_PROD_PORT: ${{ vars.PROD_PORT }}
-          SECRET_PROD_PORT: ${{ secrets.PROD_PORT }}
-          VAR_PROD_PATH: ${{ vars.PROD_PATH }}
-          SECRET_PROD_PATH: ${{ secrets.PROD_PATH }}
-          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
         run: |
           set -euo pipefail
-
-          HOST="${VAR_PROD_HOST:-${SECRET_PROD_HOST:-}}"
-          USERNAME="${VAR_PROD_USER:-${SECRET_PROD_USER:-}}"
-          PORT="${VAR_PROD_PORT:-${SECRET_PROD_PORT:-22}}"
-          PATH_VALUE="${VAR_PROD_PATH:-${SECRET_PROD_PATH:-}}"
-
-          missing=()
-          [[ -n "${HOST// }" ]] || missing+=("PROD_HOST")
-          [[ -n "${USERNAME// }" ]] || missing+=("PROD_USER")
-          [[ -n "${PORT// }" ]] || missing+=("PROD_PORT")
-          [[ -n "${PATH_VALUE// }" ]] || missing+=("PROD_PATH")
-          [[ -n "${PROD_SSH_KEY// }" ]] || missing+=("PROD_SSH_KEY")
-
-          if (( ${#missing[@]} > 0 )); then
-            echo "Missing required production settings: ${missing[*]}"
-            echo "Set PROD_HOST/PROD_USER/PROD_PATH as environment vars or secrets in 'production', and PROD_SSH_KEY as a secret."
+          PASSWORD="${DOCKERHUB_PASSWORD:-${DOCKERHUB_TOKEN:-}}"
+          if [[ -z "${DOCKERHUB_USERNAME// }" || -z "${PASSWORD// }" ]]; then
+            echo "Missing Docker Hub credentials. Set DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD (or DOCKERHUB_TOKEN)."
             exit 1
           fi
+          echo "$PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
-          {
-            echo "host=$HOST"
-            echo "username=$USERNAME"
-            echo "port=$PORT"
-            echo "path=$PATH_VALUE"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Deploy on production host
+      - name: Deploy production stack
         if: steps.tag.outputs.skip != 'true'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ steps.conn.outputs.host }}
-          username: ${{ steps.conn.outputs.username }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          port: ${{ steps.conn.outputs.port }}
-          script: |
-            set -e
-            cd "${{ steps.conn.outputs.path }}"
-            export IMAGE_TAG="${{ steps.tag.outputs.value }}"
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IMAGE_TAG="${{ steps.tag.outputs.value }}"
+          docker compose pull || true
+          docker compose up -d --build
+          docker image prune -f
 
