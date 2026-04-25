@@ -1,0 +1,33 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy (example: v1.0.0)"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy on production host
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT || '22' }}
+          script: |
+            set -e
+            cd "${{ secrets.PROD_PATH }}"
+            export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+

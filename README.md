@@ -87,6 +87,24 @@ These are maintained in DB and not exposed as dedicated frontend screens.
 
 The compose setup mounts these into MariaDB initialization directories.
 
+### Seeded master data (city/country codes)
+
+`cityCode` and `countryCode` used by customer addresses must exist in the master tables.
+
+Seeded by `database/dml/01_master_data.sql`:
+
+| Type | Code | Name |
+|---|---|---|
+| Country | `LK` | Sri Lanka |
+| Country | `IN` | India |
+| Country | `US` | United States |
+| City | `CMB` | Colombo |
+| City | `KDY` | Kandy |
+| City | `JFN` | Jaffna |
+| City | `BLR` | Bengaluru |
+
+If an unknown `cityCode` or `countryCode` is sent, `customer-service` returns `400 Bad Request`.
+
 ## 6) API Reference
 
 ### customer-service public APIs
@@ -179,22 +197,47 @@ docker compose down
 
 ## 9) Run Locally Without Docker
 
-### Backend
+Use three separate terminals so both backend services and the frontend run in parallel.
+
+### Prerequisites
+
+- MariaDB must be running on `localhost:3306`.
+- Database `customer_db` and user credentials must match the values below.
+- Schema and master data should be loaded from:
+  - `database/ddl/01_schema.sql`
+  - `database/dml/01_master_data.sql`
+
+### Terminal 1 - customer-service
 
 ```bash
 cd /Users/nadeesha_medagama/IdeaProjects/customer_management_platform/backend
-mvn clean test
+export DB_URL="jdbc:mariadb://localhost:3306/customer_db"
+export DB_USER="cmp_user"
+export DB_PASSWORD="cmp_password"
 mvn -pl customer-service spring-boot:run
+```
+
+### Terminal 2 - import-service
+
+```bash
+cd /Users/nadeesha_medagama/IdeaProjects/customer_management_platform/backend
+export CUSTOMER_SERVICE_BULK_URL="http://localhost:8081/internal/customers/bulk-upsert"
 mvn -pl import-service spring-boot:run
 ```
 
-### Frontend
+### Terminal 3 - frontend
 
 ```bash
 cd /Users/nadeesha_medagama/IdeaProjects/customer_management_platform/frontend
 npm install
 npm run dev
 ```
+
+Access after startup:
+
+- Frontend: `http://localhost:5173`
+- Customer API: `http://localhost:8081`
+- Import API: `http://localhost:8082`
 
 ## 10) Testing
 
@@ -263,3 +306,69 @@ npm run build --silent
 - For first-time family-member linking, create those referenced family customers first.
 - Frontend supports selecting a customer from table and updating via same form.
 - Import service supports create/update behavior by NIC match.
+
+## 14) Postman Quick Check (Create + See City/Country)
+
+Use:
+
+- Collection: `docs/postman/customer_management_platform.postman_collection.json`
+- Environment: `docs/postman/customer_management_platform.postman_environment.json`
+
+### 1. Create customer with valid city/country codes
+
+- Method: `POST`
+- URL: `{{customer_service_base}}/api/customers` (or `http://localhost:8081/api/customers`)
+- Header: `Content-Type: application/json`
+- Body (raw JSON):
+
+```json
+{
+  "name": "Nadeesha",
+  "dateOfBirth": "1995-06-20",
+  "nicNumber": "NIC-778899",
+  "mobileNumbers": ["+94771234567", "+94770000000"],
+  "familyMemberNics": [],
+  "addresses": [
+    {
+      "addressLine1": "No 12, Main Street",
+      "addressLine2": "Ward Place",
+      "cityCode": "CMB",
+      "countryCode": "LK"
+    }
+  ]
+}
+```
+
+Expected: `200 OK` and response contains `addresses[].cityCode`/`countryCode` plus resolved names.
+
+### 2. See created record in list API
+
+- Method: `GET`
+- URL: `{{customer_service_base}}/api/customers?page=0&size=20`
+
+Check response `content[]` item for your `nicNumber` and verify:
+
+- `addresses[].cityCode = CMB`
+- `addresses[].city = Colombo`
+- `addresses[].countryCode = LK`
+- `addresses[].country = Sri Lanka`
+
+### 3. Negative test (invalid master code)
+
+Resend create request with invalid codes, for example `cityCode: "XXX"`.
+
+Expected: `400 Bad Request` with an error message indicating invalid address master data.
+
+## 15) Closing Notes
+
+This project is ready for local development and API verification with Postman using the documented master data codes.
+
+For a smooth workflow:
+
+- Start `customer-service` before `import-service`.
+- Keep DB seed data intact (`cities` and `countries`) for address validation.
+- Use the provided Postman collection/environment for quick regression checks.
+- Run backend and frontend tests before packaging or deployment.
+
+Thank you for using the Customer Management Platform.
+
