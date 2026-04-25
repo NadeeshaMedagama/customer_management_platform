@@ -1,0 +1,270 @@
+{
+  "info": {
+    "name": "customer_management_platform",
+    "description": "Postman collection for customer_management_platform public and internal APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "f5aa3b17-1a56-4d48-a989-9a394bc848fe"
+  },
+  "item": [
+    {
+      "name": "Customer Service - Public",
+      "item": [
+        {
+          "name": "Create Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nadeesha\",\n  \"dateOfBirth\": \"1995-06-20\",\n  \"nicNumber\": \"NIC-778899\",\n  \"mobileNumbers\": [\"+94771234567\", \"+94770000000\"],\n  \"familyMemberNics\": [],\n  \"addresses\": [\n    {\n      \"addressLine1\": \"No 12, Main Street\",\n      \"addressLine2\": \"Ward Place\",\n      \"cityCode\": \"CMB\",\n      \"countryCode\": \"LK\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{customer_base_url}}/api/customers",
+              "host": [
+                "{{customer_base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json && json.id) {",
+                  "  pm.collectionVariables.set('customer_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nadeesha Updated\",\n  \"dateOfBirth\": \"1995-06-20\",\n  \"nicNumber\": \"NIC-778899\",\n  \"mobileNumbers\": [\"+94771234567\"],\n  \"familyMemberNics\": [],\n  \"addresses\": [\n    {\n      \"addressLine1\": \"No 15, Main Street\",\n      \"addressLine2\": \"Ward Place\",\n      \"cityCode\": \"CMB\",\n      \"countryCode\": \"LK\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{customer_base_url}}/api/customers/{{customer_id}}",
+              "host": [
+                "{{customer_base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customer_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Customer By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{customer_base_url}}/api/customers/{{customer_id}}",
+              "host": [
+                "{{customer_base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customer_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{customer_base_url}}/api/customers?page=0&size=20",
+              "host": [
+                "{{customer_base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Import Service - Public",
+      "item": [
+        {
+          "name": "Import Customers (Excel)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{import_base_url}}/api/import/customers?batchSize=1000",
+              "host": [
+                "{{import_base_url}}"
+              ],
+              "path": [
+                "api",
+                "import",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "batchSize",
+                  "value": "1000"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customer Service - Internal",
+      "item": [
+        {
+          "name": "Bulk Upsert Customers (Internal)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customers\": [\n    {\n      \"name\": \"John Doe\",\n      \"dateOfBirth\": \"1990-01-10\",\n      \"nicNumber\": \"NIC-10001\"\n    },\n    {\n      \"name\": \"Jane Doe\",\n      \"dateOfBirth\": \"1992-07-18\",\n      \"nicNumber\": \"NIC-10002\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{internal_bulk_url}}/internal/customers/bulk-upsert",
+              "host": [
+                "{{internal_bulk_url}}"
+              ],
+              "path": [
+                "internal",
+                "customers",
+                "bulk-upsert"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "customer_id",
+      "value": "1"
+    }
+  ]
+}
+
