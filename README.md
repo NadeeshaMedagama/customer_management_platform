@@ -11,6 +11,10 @@ A professional full-stack **Customer Management System** implemented with:
 - Maven
 - Docker / Docker Compose
 
+## Application UI Screenshot
+
+![Customer Management Platform UI](assets/img.png)
+
 ## 1) Solution Overview
 
 This project is built as a microservices-based platform with a modern React UI.
